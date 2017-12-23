@@ -12,10 +12,11 @@ export default class Slider extends React.Component {
   constructor(props) {
     super(props)
     this.state = {
-      breakpoint: null
+      breakpoint: props.ssr ? props.ssrBreakpoint : null
     };
     this._responsiveMediaHandlers = [];
-    this.innerSliderRefHandler = this.innerSliderRefHandler.bind(this)
+    this.innerSliderRefHandler = this.innerSliderRefHandler.bind(this);
+    this.setupResponsiveHandlers = this.setupResponsiveHandlers.bind(this);
   }
   innerSliderRefHandler(ref) {
     this.innerSlider = ref;
@@ -25,7 +26,7 @@ export default class Slider extends React.Component {
     enquire.register(query, handler);
     this._responsiveMediaHandlers.push({query, handler});
   }
-  componentWillMount() {
+  setupResponsiveHandlers() {
     if (this.props.responsive) {
       var breakpoints = this.props.responsive.map(breakpt => breakpt.breakpoint);
       // sort them in increasing order of their numerical value
@@ -52,6 +53,16 @@ export default class Slider extends React.Component {
       canUseDOM && this.media(query, () => {
         this.setState({breakpoint: null});
       });
+    }
+  }
+  componentWillMount() {
+    if (!this.props.ssr) {
+      this.setupResponsiveHandlers();
+    }
+  }
+  componentDidMount() {
+    if (this.props.ssr) {
+      this.setupResponsiveHandlers();
     }
   }
 
