@@ -82,6 +82,12 @@ class SimpleSlider extends React.Component {
 
 For all available props, go [here](https://react-slick.neostack.com/docs/api/).
 
+If you are using the responsive property and server side rendering be sure to set the `ssr` property to true. This will make sure when the client renders it uses the same settings as the server and doesn't change to your responsive settings until after mount. If you use server side client detection you can set `ssrBreakpoint` to have the server render with a specific breakpoints settings instead of the default.
+
+[customArrows]: https://github.com/akiran/react-slick/blob/master/examples/CustomArrows.js
+[customPaging]: https://github.com/akiran/react-slick/blob/master/examples/CustomPaging.js
+
+
 ### Methods
 
 For all available methods, go [here](https://react-slick.neostack.com/docs/api#methods)

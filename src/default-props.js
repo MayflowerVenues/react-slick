@@ -41,6 +41,8 @@ var defaultProps = {
   slidesToScroll: 1,
   slidesToShow: 1,
   speed: 500,
+  ssr: false,
+  ssrBreakpoint: null,
   swipe: true,
   swipeEvent: null,
   swipeToSlide: false,

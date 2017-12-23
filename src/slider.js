@@ -11,7 +11,7 @@ export default class Slider extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      breakpoint: null
+      breakpoint: props.ssr ? props.ssrBreakpoint : null
     };
     this._responsiveMediaHandlers = [];
   }
@@ -24,13 +24,7 @@ export default class Slider extends React.Component {
     this._responsiveMediaHandlers.push({ query, handler });
   }
 
-  // handles responsive breakpoints
-  componentWillMount() {
-    // performance monitoring
-    //if (process.env.NODE_ENV !== 'production') {
-    //const { whyDidYouUpdate } = require('why-did-you-update')
-    //whyDidYouUpdate(React)
-    //}
+  setupResponsiveHandlers = () => {
     if (this.props.responsive) {
       let breakpoints = this.props.responsive.map(
         breakpt => breakpt.breakpoint
@@ -64,6 +58,21 @@ export default class Slider extends React.Component {
         this.media(query, () => {
           this.setState({ breakpoint: null });
         });
+    }
+  };
+  componentWillMount() {
+    // performance monitoring
+    //if (process.env.NODE_ENV !== 'production') {
+    //const { whyDidYouUpdate } = require('why-did-you-update')
+    //whyDidYouUpdate(React)
+    //}
+    if (!this.props.ssr) {
+      this.setupResponsiveHandlers();
+    }
+  }
+  componentDidMount() {
+    if (this.props.ssr) {
+      this.setupResponsiveHandlers();
     }
   }
 
