@@ -122,6 +122,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  };
 
 	  Slider.prototype.media = function media(query, handler) {
+	    // javascript handler for  css media query
 	    enquire.register(query, handler);
 	    this._responsiveMediaHandlers.push({ query: query, handler: handler });
 	  };
@@ -133,23 +134,27 @@ return /******/ (function(modules) { // webpackBootstrap
 	      var breakpoints = this.props.responsive.map(function (breakpt) {
 	        return breakpt.breakpoint;
 	      });
+	      // sort them in increasing order of their numerical value
 	      breakpoints.sort(function (x, y) {
 	        return x - y;
 	      });
 
 	      breakpoints.forEach(function (breakpoint, index) {
+	        // media query for each breakpoint
 	        var bQuery;
 	        if (index === 0) {
 	          bQuery = (0, _json2mq2.default)({ minWidth: 0, maxWidth: breakpoint });
 	        } else {
 	          bQuery = (0, _json2mq2.default)({ minWidth: breakpoints[index - 1], maxWidth: breakpoint });
 	        }
+	        // when not using server side rendering
 	        _canUseDom2.default && _this2.media(bQuery, function () {
 	          _this2.setState({ breakpoint: breakpoint });
 	        });
 	      });
 
 	      // Register media query for full screen. Need to support resize from small to large
+	      // convert javascript object to media query string
 	      var query = (0, _json2mq2.default)({ minWidth: breakpoints.slice(-1)[0] });
 
 	      _canUseDom2.default && this.media(query, function () {
@@ -188,27 +193,58 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this.innerSlider.slickGoTo(slide);
 	  };
 
+	  Slider.prototype.slickPause = function slickPause() {
+	    this.innerSlider.pause();
+	  };
+
+	  Slider.prototype.slickPlay = function slickPlay() {
+	    this.innerSlider.autoPlay();
+	  };
+
 	  Slider.prototype.render = function render() {
 	    var _this3 = this;
 
 	    var settings;
 	    var newProps;
 	    if (this.state.breakpoint) {
+	      // never executes in the first render
+	      // so defaultProps should be already there in this.props
 	      newProps = this.props.responsive.filter(function (resp) {
 	        return resp.breakpoint === _this3.state.breakpoint;
 	      });
-	      settings = newProps[0].settings === 'unslick' ? 'unslick' : (0, _objectAssign2.default)({}, this.props, newProps[0].settings);
+	      settings = newProps[0].settings === 'unslick' ? 'unslick' : (0, _objectAssign2.default)({}, _defaultProps2.default, this.props, newProps[0].settings);
 	    } else {
 	      settings = (0, _objectAssign2.default)({}, _defaultProps2.default, this.props);
 	    }
 
-	    var children = this.props.children;
-	    if (!Array.isArray(children)) {
-	      children = [children];
+	    // force scrolling by one if centerMode is on
+	    if (settings.centerMode) {
+	      if (settings.slidesToScroll > 1 && (undefined) !== 'production') {
+	        console.warn('slidesToScroll should be equal to 1 in centerMode, you are using ' + settings.slidesToScroll);
+	      }
+	      settings.slidesToScroll = 1;
+	    }
+	    // force showing one slide and scrolling by one if the fade mode is on
+	    if (settings.fade) {
+	      if (settings.slidesToShow > 1 && (undefined) !== 'production') {
+	        console.warn('slidesToShow should be equal to 1 when fade is true, you\'re using ' + settings.slidesToShow);
+	      }
+	      if (settings.slidesToScroll > 1 && (undefined) !== 'production') {
+	        console.warn('slidesToScroll should be equal to 1 when fade is true, you\'re using ' + settings.slidesToScroll);
+	      }
+	      settings.slidesToShow = 1;
+	      settings.slidesToScroll = 1;
 	    }
 
+	    // makes sure that children is an array, even when there is only 1 child
+	    var children = _react2.default.Children.toArray(this.props.children);
+
 	    // Children may contain false or null, so we should filter them
+	    // children may also contain string filled with spaces (in certain cases where we use jsx strings)
 	    children = children.filter(function (child) {
+	      if (typeof child === 'string') {
+	        return !!child.trim();
+	      }
 	      return !!child;
 	    });
 
@@ -294,8 +330,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  displayName: 'InnerSlider',
 
 	  mixins: [_helpers2.default, _eventHandlers2.default],
-	  list: null,
-	  track: null,
+	  list: null, // wraps the track
+	  track: null, // component that rolls out like a film
 	  listRefHandler: function listRefHandler(ref) {
 	    this.list = ref;
 	  },
@@ -307,9 +343,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	      currentSlide: this.props.initialSlide
 	    });
 	  },
-	  getDefaultProps: function getDefaultProps() {
-	    return _defaultProps2.default;
-	  },
 	  componentWillMount: function componentWillMount() {
 	    if (this.props.init) {
 	      this.props.init();
@@ -318,9 +351,27 @@ return /******/ (function(modules) { // webpackBootstrap
 	      mounted: true
 	    });
 	    var lazyLoadedList = [];
-	    for (var i = 0; i < _react2.default.Children.count(this.props.children); i++) {
-	      if (i >= this.state.currentSlide && i < this.state.currentSlide + this.props.slidesToShow) {
+	    // number of slides shown in the active frame
+	    var slidesToShow = this.props.slidesToShow;
+	    var childrenLen = _react2.default.Children.count(this.props.children);
+	    var currentSlide = this.state.currentSlide;
+	    for (var i = 0; i < childrenLen; i++) {
+	      // if currentSlide is the lastSlide of current frame and 
+	      // rest of the active slides are on the left of currentSlide
+	      // then the following might cause a problem
+	      if (i >= currentSlide && i < currentSlide + slidesToShow) {
 	        lazyLoadedList.push(i);
+	      }
+	    }
+	    if (this.props.centerMode === true) {
+	      // add slides to show on the left in case of centerMode with lazyLoad
+	      var additionalCount = Math.floor(slidesToShow / 2);
+	      if (parseInt(this.props.centerPadding) > 0) {
+	        additionalCount += 1;
+	      }
+	      var additionalNum = currentSlide;
+	      while (additionalCount--) {
+	        lazyLoadedList.push((--additionalNum + childrenLen) % childrenLen);
 	      }
 	    }
 
@@ -380,6 +431,23 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	  },
 	  componentDidUpdate: function componentDidUpdate() {
+	    if (this.props.lazyLoad && this.props.centerMode) {
+	      var childrenLen = _react2.default.Children.count(this.props.children);
+	      var additionalCount = Math.floor(this.props.slidesToShow / 2);
+	      if (parseInt(this.props.centerPadding) > 0) additionalCount++;
+	      var leftMostSlide = (this.state.currentSlide - additionalCount + childrenLen) % childrenLen;
+	      var rightMostSlide = (this.state.currentSlide + additionalCount) % childrenLen;
+	      if (!this.state.lazyLoadedList.includes(leftMostSlide)) {
+	        this.setState({
+	          lazyLoadedList: this.state.lazyLoadedList + [leftMostSlide]
+	        });
+	      }
+	      if (!this.state.lazyLoadedList.includes(rightMostSlide)) {
+	        this.setState({
+	          lazyLoadedList: this.state.lazyLoadedList + [rightMostSlide]
+	        });
+	      }
+	    }
 	    this.adaptHeight();
 	  },
 	  onWindowResized: function onWindowResized() {
@@ -422,6 +490,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	      lazyLoadedList: this.state.lazyLoadedList,
 	      rtl: this.props.rtl,
 	      slideWidth: this.state.slideWidth,
+	      slideHeight: this.state.slideHeight,
+	      listHeight: this.state.listHeight,
+	      vertical: this.props.vertical,
 	      slidesToShow: this.props.slidesToShow,
 	      slidesToScroll: this.props.slidesToScroll,
 	      slideCount: this.state.slideCount,
@@ -440,7 +511,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        slidesToScroll: this.props.slidesToScroll,
 	        clickHandler: this.changeSlide,
 	        children: this.props.children,
-	        customPaging: this.props.customPaging
+	        customPaging: this.props.customPaging,
+	        infinite: this.props.infinite
 	      };
 
 	      dots = _react2.default.createElement(_dots.Dots, dotProps);
@@ -552,6 +624,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	var EventHandlers = {
 	  // Event handler for previous and next
+	  // gets called if slide is changed via arrows or dots but not swiping/dragging
 	  changeSlide: function changeSlide(options) {
 	    var indexOffset, previousInt, slideOffset, unevenOffset, targetSlide;
 	    var _props = this.props,
@@ -567,14 +640,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (options.message === 'previous') {
 	      slideOffset = indexOffset === 0 ? slidesToScroll : slidesToShow - indexOffset;
 	      targetSlide = currentSlide - slideOffset;
-	      if (this.props.lazyLoad) {
+	      if (this.props.lazyLoad && !this.props.infinite) {
 	        previousInt = currentSlide - slideOffset;
 	        targetSlide = previousInt === -1 ? slideCount - 1 : previousInt;
 	      }
 	    } else if (options.message === 'next') {
 	      slideOffset = indexOffset === 0 ? slidesToScroll : indexOffset;
 	      targetSlide = currentSlide + slideOffset;
-	      if (this.props.lazyLoad) {
+	      if (this.props.lazyLoad && !this.props.infinite) {
 	        targetSlide = (currentSlide + slidesToScroll) % slideCount + indexOffset;
 	      }
 	    } else if (options.message === 'dots' || options.message === 'children') {
@@ -612,6 +685,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  selectHandler: function selectHandler(options) {
 	    this.changeSlide(options);
 	  },
+	  // invoked when swiping/dragging starts (just once)
 	  swipeStart: function swipeStart(e) {
 	    var touches, posX, posY;
 
@@ -632,6 +706,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      }
 	    });
 	  },
+	  // continuous invokation while swiping/dragging is going on
 	  swipeMove: function swipeMove(e) {
 	    if (!this.state.dragging) {
 	      e.preventDefault();
@@ -678,7 +753,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    var currentSlide = this.state.currentSlide;
-	    var dotCount = Math.ceil(this.state.slideCount / this.props.slidesToScroll);
+	    var dotCount = Math.ceil(this.state.slideCount / this.props.slidesToScroll); // this might not be correct, using getDotCount may be more accurate
 	    var swipeDirection = this.swipeDirection(this.state.touchObject);
 	    var touchSwipeLength = touchObject.swipeLength;
 
@@ -692,14 +767,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	      }
 	    }
-
 	    if (this.state.swiped === false && this.props.swipeEvent) {
 	      this.props.swipeEvent(swipeDirection);
 	      this.setState({ swiped: true });
 	    }
 
 	    if (!this.props.vertical) {
-	      swipeLeft = curLeft + touchSwipeLength * positionOffset;
+	      if (!this.props.rtl) {
+	        swipeLeft = curLeft + touchSwipeLength * positionOffset;
+	      } else {
+	        swipeLeft = curLeft - touchSwipeLength * positionOffset;
+	      }
 	    } else {
 	      swipeLeft = curLeft + touchSwipeLength * (this.state.listHeight / this.state.listWidth) * positionOffset;
 	    }
@@ -794,7 +872,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return true;
 	      });
 
-	      var slidesTraversed = Math.abs(swipedSlide.dataset.index - this.state.currentSlide) || 1;
+	      var currentIndex = this.props.rtl === true ? this.state.slideCount - this.state.currentSlide : this.state.currentSlide;
+	      var slidesTraversed = Math.abs(swipedSlide.dataset.index - currentIndex) || 1;
 
 	      return slidesTraversed;
 	    } else {
@@ -903,6 +982,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	exports.__esModule = true;
 	exports.getTrackLeft = exports.getTrackAnimateCSS = exports.getTrackCSS = undefined;
+	exports.getPreClones = getPreClones;
+	exports.getPostClones = getPostClones;
+	exports.getTotalSlides = getTotalSlides;
 
 	var _reactDom = __webpack_require__(6);
 
@@ -914,6 +996,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+	// checks if spec is the superset of keys in keysArray, i.e., spec contains all the keys from keysArray
 	var checkSpecKeys = function checkSpecKeys(spec, keysArray) {
 	  return keysArray.reduce(function (value, key) {
 	    return value && spec.hasOwnProperty(key);
@@ -924,17 +1007,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	  checkSpecKeys(spec, ['left', 'variableWidth', 'slideCount', 'slidesToShow', 'slideWidth']);
 
 	  var trackWidth, trackHeight;
-
-	  var trackChildren = spec.slideCount + 2 * spec.slidesToShow;
-
+	  var trackChildren = spec.slideCount + 2 * spec.slidesToShow; // this should probably be getTotalSlides
 	  if (!spec.vertical) {
-	    if (spec.variableWidth) {
-	      trackWidth = (spec.slideCount + 2 * spec.slidesToShow) * spec.slideWidth;
-	    } else if (spec.centerMode) {
-	      trackWidth = (spec.slideCount + 2 * (spec.slidesToShow + 1)) * spec.slideWidth;
-	    } else {
-	      trackWidth = (spec.slideCount + 2 * spec.slidesToShow) * spec.slideWidth;
-	    }
+	    trackWidth = getTotalSlides(spec) * spec.slideWidth;
+	    trackWidth += spec.slideWidth / 2; // this is a temporary hack so that track div doesn't create new row for slight overflow
 	  } else {
 	    trackHeight = trackChildren * spec.slideHeight;
 	  }
@@ -947,6 +1023,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    WebkitTransition: '',
 	    msTransform: !spec.vertical ? 'translateX(' + spec.left + 'px)' : 'translateY(' + spec.left + 'px)'
 	  };
+	  if (spec.fade) {
+	    style = {
+	      opacity: 1
+	    };
+	  }
 
 	  if (trackWidth) {
 	    (0, _objectAssign2.default)(style, { width: trackWidth });
@@ -978,83 +1059,107 @@ return /******/ (function(modules) { // webpackBootstrap
 	  return style;
 	};
 
+	// gets total length of track that's on the left side of current slide
 	var getTrackLeft = exports.getTrackLeft = function getTrackLeft(spec) {
 
 	  checkSpecKeys(spec, ['slideIndex', 'trackRef', 'infinite', 'centerMode', 'slideCount', 'slidesToShow', 'slidesToScroll', 'slideWidth', 'listWidth', 'variableWidth', 'slideHeight']);
+
+	  var slideIndex = spec.slideIndex,
+	      trackRef = spec.trackRef,
+	      infinite = spec.infinite,
+	      centerMode = spec.centerMode,
+	      slideCount = spec.slideCount,
+	      slidesToShow = spec.slidesToShow,
+	      slidesToScroll = spec.slidesToScroll,
+	      slideWidth = spec.slideWidth,
+	      listWidth = spec.listWidth,
+	      variableWidth = spec.variableWidth,
+	      slideHeight = spec.slideHeight,
+	      fade = spec.fade,
+	      vertical = spec.vertical;
+
 
 	  var slideOffset = 0;
 	  var targetLeft;
 	  var targetSlide;
 	  var verticalOffset = 0;
 
-	  if (spec.fade) {
+	  if (fade || spec.slideCount === 1) {
 	    return 0;
 	  }
 
-	  if (spec.infinite) {
-	    if (spec.slideCount >= spec.slidesToShow) {
-	      slideOffset = spec.slideWidth * spec.slidesToShow * -1;
-	      verticalOffset = spec.slideHeight * spec.slidesToShow * -1;
+	  var slidesToOffset = 0;
+	  if (infinite) {
+	    slidesToOffset = -getPreClones(spec); // bring active slide to the beginning of visual area
+	    // if next scroll doesn't have enough children, just reach till the end of original slides instead of shifting slidesToScroll children
+	    if (slideCount % slidesToScroll !== 0 && slideIndex + slidesToScroll > slideCount) {
+	      slidesToOffset = -(slideIndex > slideCount ? slidesToShow - (slideIndex - slideCount) : slideCount % slidesToScroll);
 	    }
-	    if (spec.slideCount % spec.slidesToScroll !== 0) {
-	      if (spec.slideIndex + spec.slidesToScroll > spec.slideCount && spec.slideCount > spec.slidesToShow) {
-	        if (spec.slideIndex > spec.slideCount) {
-	          slideOffset = (spec.slidesToShow - (spec.slideIndex - spec.slideCount)) * spec.slideWidth * -1;
-	          verticalOffset = (spec.slidesToShow - (spec.slideIndex - spec.slideCount)) * spec.slideHeight * -1;
-	        } else {
-	          slideOffset = spec.slideCount % spec.slidesToScroll * spec.slideWidth * -1;
-	          verticalOffset = spec.slideCount % spec.slidesToScroll * spec.slideHeight * -1;
-	        }
-	      }
+	    // shift current slide to center of the frame
+	    if (centerMode) {
+	      slidesToOffset += parseInt(slidesToShow / 2);
 	    }
 	  } else {
-
-	    if (spec.slideCount % spec.slidesToScroll !== 0) {
-	      if (spec.slideIndex + spec.slidesToScroll > spec.slideCount && spec.slideCount > spec.slidesToShow) {
-	        var slidesToOffset = spec.slidesToShow - spec.slideCount % spec.slidesToScroll;
-	        slideOffset = slidesToOffset * spec.slideWidth;
-	      }
+	    if (slideCount % slidesToScroll !== 0 && slideIndex + slidesToScroll > slideCount) {
+	      slidesToOffset = slidesToShow - slideCount % slidesToScroll;
+	    }
+	    if (centerMode) {
+	      slidesToOffset = parseInt(slidesToShow / 2);
 	    }
 	  }
+	  slideOffset = slidesToOffset * slideWidth;
+	  verticalOffset = slidesToOffset * slideHeight;
 
-	  if (spec.centerMode) {
-	    if (spec.infinite) {
-	      slideOffset += spec.slideWidth * Math.floor(spec.slidesToShow / 2);
-	    } else {
-	      slideOffset = spec.slideWidth * Math.floor(spec.slidesToShow / 2);
-	    }
-	  }
-
-	  if (!spec.vertical) {
-	    targetLeft = spec.slideIndex * spec.slideWidth * -1 + slideOffset;
+	  if (!vertical) {
+	    targetLeft = slideIndex * slideWidth * -1 + slideOffset;
 	  } else {
-	    targetLeft = spec.slideIndex * spec.slideHeight * -1 + verticalOffset;
+	    targetLeft = slideIndex * slideHeight * -1 + verticalOffset;
 	  }
 
-	  if (spec.variableWidth === true) {
+	  if (variableWidth === true) {
 	    var targetSlideIndex;
-	    if (spec.slideCount <= spec.slidesToShow || spec.infinite === false) {
-	      targetSlide = _reactDom2.default.findDOMNode(spec.trackRef).childNodes[spec.slideIndex];
+	    var lastSlide = _reactDom2.default.findDOMNode(trackRef).children[slideCount - 1];
+	    var max = -lastSlide.offsetLeft + listWidth - lastSlide.offsetWidth;
+	    if (slideCount <= slidesToShow || infinite === false) {
+	      targetSlide = _reactDom2.default.findDOMNode(trackRef).childNodes[slideIndex];
 	    } else {
-	      targetSlideIndex = spec.slideIndex + spec.slidesToShow;
-	      targetSlide = _reactDom2.default.findDOMNode(spec.trackRef).childNodes[targetSlideIndex];
+	      targetSlideIndex = slideIndex + slidesToShow;
+	      targetSlide = _reactDom2.default.findDOMNode(trackRef).childNodes[targetSlideIndex];
 	    }
 	    targetLeft = targetSlide ? targetSlide.offsetLeft * -1 : 0;
-	    if (spec.centerMode === true) {
-	      if (spec.infinite === false) {
-	        targetSlide = _reactDom2.default.findDOMNode(spec.trackRef).children[spec.slideIndex];
+	    if (centerMode === true) {
+	      if (infinite === false) {
+	        targetSlide = _reactDom2.default.findDOMNode(trackRef).children[slideIndex];
 	      } else {
-	        targetSlide = _reactDom2.default.findDOMNode(spec.trackRef).children[spec.slideIndex + spec.slidesToShow + 1];
+	        targetSlide = _reactDom2.default.findDOMNode(trackRef).children[slideIndex + slidesToShow + 1];
 	      }
 
 	      if (targetSlide) {
-	        targetLeft = targetSlide.offsetLeft * -1 + (spec.listWidth - targetSlide.offsetWidth) / 2;
+	        targetLeft = targetSlide.offsetLeft * -1 + (listWidth - targetSlide.offsetWidth) / 2;
 	      }
+	    }
+	    if (spec.infinite === false && targetLeft < max) {
+	      targetLeft = max;
 	    }
 	  }
 
 	  return targetLeft;
 	};
+
+	function getPreClones(spec) {
+	  return spec.slidesToShow + (spec.centerMode ? 1 : 0);
+	}
+
+	function getPostClones(spec) {
+	  return spec.slideCount;
+	}
+
+	function getTotalSlides(spec) {
+	  if (spec.slideCount === 1) {
+	    return 1;
+	  }
+	  return getPreClones(spec) + spec.slideCount + getPostClones(spec);
+	}
 
 /***/ }),
 /* 6 */
@@ -1185,6 +1290,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	var helpers = {
+	  // supposed to start autoplay of slides
 	  initialize: function initialize(props) {
 	    var slickList = _reactDom2.default.findDOMNode(this.list);
 
@@ -1195,6 +1301,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    if (!props.vertical) {
 	      var centerPaddingAdj = props.centerMode && parseInt(props.centerPadding) * 2;
+	      if (props.centerPadding.slice(-1) === '%') {
+	        centerPaddingAdj *= listWidth / 100;
+	      }
 	      slideWidth = (this.getWidth(_reactDom2.default.findDOMNode(this)) - centerPaddingAdj) / props.slidesToShow;
 	    } else {
 	      slideWidth = this.getWidth(_reactDom2.default.findDOMNode(this));
@@ -1214,7 +1323,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      slideHeight: slideHeight,
 	      listHeight: listHeight
 	    }, function () {
-
+	      // this reference isn't lost due to mixin
 	      var targetLeft = (0, _trackHelper.getTrackLeft)((0, _objectAssign2.default)({
 	        slideIndex: this.state.currentSlide,
 	        trackRef: this.track
@@ -1238,6 +1347,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    if (!props.vertical) {
 	      var centerPaddingAdj = props.centerMode && parseInt(props.centerPadding) * 2;
+	      if (props.centerPadding.slice(-1) === '%') {
+	        centerPaddingAdj *= listWidth / 100;
+	      }
 	      slideWidth = (this.getWidth(_reactDom2.default.findDOMNode(this)) - centerPaddingAdj) / props.slidesToShow;
 	    } else {
 	      slideWidth = this.getWidth(_reactDom2.default.findDOMNode(this));
@@ -1284,7 +1396,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	      var selector = '[data-index="' + this.state.currentSlide + '"]';
 	      if (this.list) {
 	        var slickList = _reactDom2.default.findDOMNode(this.list);
-	        slickList.style.height = slickList.querySelector(selector).offsetHeight + 'px';
+	        var elem = slickList.querySelector(selector) || {};
+	        slickList.style.height = (elem.offsetHeight || 0) + 'px';
 	      }
 	    }
 	  },
@@ -1308,8 +1421,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	  slideHandler: function slideHandler(index) {
 	    var _this = this;
 
+	    // index is target slide index
+
 	    // Functionality of animateSlide and postSlide is merged into this function
-	    // console.log('slideHandler', index);
 	    var targetSlide, currentSlide;
 	    var targetLeft, currentLeft;
 	    var callback;
@@ -1321,7 +1435,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (this.props.fade) {
 	      currentSlide = this.state.currentSlide;
 
-	      // Don't change slide if it's not infite and current slide is the first or last slide.
+	      // Don't change slide if infinite=false and target slide is out of range
 	      if (this.props.infinite === false && (index < 0 || index >= this.state.slideCount)) {
 	        return;
 	      }
@@ -1398,6 +1512,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }, this.props, this.state));
 
 	    if (this.props.infinite === false) {
+	      if (targetLeft === currentLeft) {
+	        targetSlide = currentSlide;
+	      }
 	      targetLeft = currentLeft;
 	    }
 
@@ -1406,15 +1523,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    if (this.props.lazyLoad) {
-	      var loaded = true;
 	      var slidesToLoad = [];
+	      var slideCount = this.state.slideCount;
 	      for (var i = targetSlide; i < targetSlide + this.props.slidesToShow; i++) {
-	        loaded = loaded && this.state.lazyLoadedList.indexOf(i) >= 0;
-	        if (!loaded) {
+	        if (this.state.lazyLoadedList.indexOf(i) < 0) {
 	          slidesToLoad.push(i);
 	        }
+	        if (i >= slideCount && this.state.lazyLoadedList.indexOf(i - slideCount) < 0) {
+	          slidesToLoad.push(i - slideCount);
+	        }
+	        if (i < 0 && this.state.lazyLoadedList.indexOf(i + slideCount) < 0) {
+	          slidesToLoad.push(i + slideCount);
+	        }
 	      }
-	      if (!loaded) {
+	      if (slidesToLoad.length > 0) {
 	        this.setState({
 	          lazyLoadedList: this.state.lazyLoadedList.concat(slidesToLoad)
 	        });
@@ -1444,13 +1566,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	        trackStyle: (0, _trackHelper.getTrackCSS)((0, _objectAssign2.default)({ left: currentLeft }, this.props, this.state)),
 	        swipeLeft: null
 	      };
-
 	      callback = function callback() {
-	        _this.setState(nextStateChanges);
-	        if (_this.props.afterChange) {
-	          _this.props.afterChange(currentSlide);
-	        }
-	        delete _this.animationEndCallback;
+	        _this.setState(nextStateChanges, function () {
+	          if (_this.props.afterChange) {
+	            _this.props.afterChange(currentSlide);
+	          }
+	          delete _this.animationEndCallback;
+	        });
 	      };
 
 	      this.setState({
@@ -1476,10 +1598,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	      swipeAngle = 360 - Math.abs(swipeAngle);
 	    }
 	    if (swipeAngle <= 45 && swipeAngle >= 0 || swipeAngle <= 360 && swipeAngle >= 315) {
-	      return this.props.rtl === false ? 'left' : 'right';
+	      return 'left';
 	    }
 	    if (swipeAngle >= 135 && swipeAngle <= 225) {
-	      return this.props.rtl === false ? 'right' : 'left';
+	      return 'right';
 	    }
 	    if (this.props.verticalSwiping === true) {
 	      if (swipeAngle >= 35 && swipeAngle <= 135) {
@@ -1591,6 +1713,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
+	exports.__esModule = true;
+
 	var _react = __webpack_require__(2);
 
 	var _react2 = _interopRequireDefault(_react);
@@ -1644,14 +1768,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	    afterChange: null,
 	    beforeChange: null,
 	    edgeEvent: null,
+	    // init: function hook that gets called right before InnerSlider mounts
 	    init: null,
 	    swipeEvent: null,
-	    // nextArrow, prevArrow are react componets
+	    // nextArrow, prevArrow should react componets
 	    nextArrow: null,
 	    prevArrow: null
 	};
 
-	module.exports = defaultProps;
+	exports.default = defaultProps;
 
 /***/ }),
 /* 11 */
@@ -2834,30 +2959,37 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+	// given specifications/props for a slide, fetch all the classes that need to be applied to the slide
 	var getSlideClasses = function getSlideClasses(spec) {
+	  // if spec has currentSlideIndex, we can also apply slickCurrent class according to that (https://github.com/kenwheeler/slick/blob/master/slick/slick.js#L2300-L2302)
 	  var slickActive, slickCenter, slickCloned;
 	  var centerOffset, index;
 
 	  if (spec.rtl) {
+	    // if we're going right to left, index is reversed
 	    index = spec.slideCount - 1 - spec.index;
 	  } else {
+	    // index of the slide
 	    index = spec.index;
 	  }
 	  slickCloned = index < 0 || index >= spec.slideCount;
 	  if (spec.centerMode) {
 	    centerOffset = Math.floor(spec.slidesToShow / 2);
-	    slickCenter = (index - spec.currentSlide) % spec.slideCount === 0;
+	    slickCenter = (index - spec.currentSlide) % spec.slideCount === 0; // concern: not sure if this should be correct (https://github.com/kenwheeler/slick/blob/master/slick/slick.js#L2328-L2346)
 	    if (index > spec.currentSlide - centerOffset - 1 && index <= spec.currentSlide + centerOffset) {
 	      slickActive = true;
 	    }
 	  } else {
+	    // concern: following can be incorrect in case where currentSlide is lastSlide in frame and rest of the slides to show have index smaller than currentSlideIndex
 	    slickActive = spec.currentSlide <= index && index < spec.currentSlide + spec.slidesToShow;
 	  }
+	  var slickCurrent = index === spec.currentSlide;
 	  return (0, _classnames2.default)({
 	    'slick-slide': true,
 	    'slick-active': slickActive,
 	    'slick-center': slickCenter,
-	    'slick-cloned': slickCloned
+	    'slick-cloned': slickCloned,
+	    'slick-current': slickCurrent // dubious in case of RTL
 	  });
 	};
 
@@ -2870,18 +3002,22 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	  if (spec.fade) {
 	    style.position = 'relative';
-	    style.left = -spec.index * spec.slideWidth;
+	    if (spec.vertical) {
+	      style.top = -spec.index * spec.slideHeight;
+	    } else {
+	      style.left = -spec.index * spec.slideWidth;
+	    }
 	    style.opacity = spec.currentSlide === spec.index ? 1 : 0;
-	    style.transition = 'opacity ' + spec.speed + 'ms ' + spec.cssEase;
-	    style.WebkitTransition = 'opacity ' + spec.speed + 'ms ' + spec.cssEase;
+	    style.visibility = spec.currentSlide === spec.index ? 'visible' : 'hidden';
+	    style.transition = 'opacity ' + spec.speed + 'ms ' + spec.cssEase + ', ' + 'visibility ' + spec.speed + 'ms ' + spec.cssEase;
+	    style.WebkitTransition = 'opacity ' + spec.speed + 'ms ' + spec.cssEase + ', ' + 'visibility ' + spec.speed + 'ms ' + spec.cssEase;
 	  }
 
 	  return style;
 	};
 
 	var getKey = function getKey(child, fallbackKey) {
-	  // key could be a zero
-	  return child.key === null || child.key === undefined ? fallbackKey : child.key;
+	  return child.key || fallbackKey;
 	};
 
 	var renderSlides = function renderSlides(spec) {
@@ -2889,7 +3025,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  var slides = [];
 	  var preCloneSlides = [];
 	  var postCloneSlides = [];
-	  var count = _react2.default.Children.count(spec.children);
+	  var childrenCount = _react2.default.Children.count(spec.children);
 
 	  _react2.default.Children.forEach(spec.children, function (elem, index) {
 	    var child = void 0;
@@ -2900,6 +3036,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      currentSlide: spec.currentSlide
 	    };
 
+	    // in case of lazyLoad, whether or not we want to fetch the slide
 	    if (!spec.lazyLoad || spec.lazyLoad && spec.lazyLoadedList.indexOf(index) >= 0) {
 	      child = elem;
 	    } else {
@@ -2915,6 +3052,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      }
 	    };
 
+	    // push a cloned element of the desired slide
 	    slides.push(_react2.default.cloneElement(child, {
 	      key: 'original' + getKey(child, index),
 	      'data-index': index,
@@ -2925,11 +3063,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }));
 
 	    // variableWidth doesn't wrap properly.
+	    // if slide needs to be precloned or postcloned
 	    if (spec.infinite && spec.fade === false) {
-	      var infiniteCount = spec.variableWidth ? spec.slidesToShow + 1 : spec.slidesToShow;
-
-	      if (index >= count - infiniteCount) {
-	        key = -(count - index);
+	      var preCloneNo = childrenCount - index;
+	      if (preCloneNo <= spec.slidesToShow + (spec.centerMode ? 1 : 0) && childrenCount !== spec.slidesToShow) {
+	        key = -preCloneNo;
 	        preCloneSlides.push(_react2.default.cloneElement(child, {
 	          key: 'precloned' + getKey(child, key),
 	          'data-index': key,
@@ -2939,8 +3077,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }));
 	      }
 
-	      if (index < infiniteCount) {
-	        key = count + index;
+	      if (childrenCount !== spec.slidesToShow) {
+	        key = childrenCount + index;
 	        postCloneSlides.push(_react2.default.cloneElement(child, {
 	          key: 'postcloned' + getKey(child, key),
 	          'data-index': key,
@@ -2969,7 +3107,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }
 
 	  Track.prototype.render = function render() {
-	    var slides = renderSlides.call(this, this.props);
+	    // var slides = renderSlides.call(this, this.props);
+	    var slides = renderSlides(this.props);
 	    return _react2.default.createElement(
 	      'div',
 	      { className: 'slick-track', style: this.props.trackStyle },
@@ -3007,7 +3146,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	var getDotCount = function getDotCount(spec) {
 	  var dots;
-	  dots = Math.ceil(spec.slideCount / spec.slidesToScroll);
+
+	  if (spec.infinite) {
+	    dots = Math.ceil(spec.slideCount / spec.slidesToScroll);
+	  } else {
+	    dots = Math.ceil((spec.slideCount - spec.slidesToShow) / spec.slidesToScroll) + 1;
+	  }
+
 	  return dots;
 	};
 
@@ -3032,7 +3177,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	    var dotCount = getDotCount({
 	      slideCount: this.props.slideCount,
-	      slidesToScroll: this.props.slidesToScroll
+	      slidesToScroll: this.props.slidesToScroll,
+	      slidesToShow: this.props.slidesToShow,
+	      infinite: this.props.infinite
 	    });
 
 	    // Apply join & split to Array to pre-fill it for IE8
